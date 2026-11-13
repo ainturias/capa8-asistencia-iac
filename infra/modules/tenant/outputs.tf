@@ -1,11 +1,11 @@
-output "frontend_public_ip" { value = aws_instance.frontend.public_ip }
+output "frontend_public_ip" { value = aws_eip.frontend.public_ip }
 output "backend_public_ip" { value = aws_instance.backend.public_ip }
 output "db_private_ip" { value = aws_instance.db.private_ip }
 output "backend_private_ip" { value = aws_instance.backend.private_ip }
 
 output "url" {
   description = "URL del tenant (por IP, no hace falta dominio)."
-  value       = "http://${aws_instance.frontend.public_ip}"
+  value       = "http://${aws_eip.frontend.public_ip}"
 }
 
 output "plan_limits" {
@@ -25,7 +25,7 @@ output "db_password" {
 output "ansible_inventory" {
   value = <<-EOT
     [frontend]
-    ${aws_instance.frontend.public_ip}
+    ${aws_eip.frontend.public_ip}
     [backend]
     ${aws_instance.backend.public_ip}
     [db]
@@ -44,9 +44,10 @@ output "ansible_inventory" {
 
 # Targets de Prometheus (file_sd) con etiquetas tenant/env/role → métricas por tenant y entorno (RF-27).
 output "prometheus_targets" {
+  description = "Targets file_sd con IPs PRIVADAS (estables al suspender/reanudar). Prometheus debe estar en la misma VPC."
   value = jsonencode([
-    { targets = ["${aws_instance.frontend.public_ip}:9100"], labels = { tenant = var.tenant, env = var.environment, role = "frontend", plan = var.plan } },
-    { targets = ["${aws_instance.backend.public_ip}:9100"], labels = { tenant = var.tenant, env = var.environment, role = "backend", plan = var.plan } },
-    { targets = ["${aws_instance.db.public_ip}:9100"], labels = { tenant = var.tenant, env = var.environment, role = "db", plan = var.plan } },
+    { targets = ["${aws_instance.frontend.private_ip}:9100"], labels = { tenant = var.tenant, env = var.environment, role = "frontend", plan = var.plan } },
+    { targets = ["${aws_instance.backend.private_ip}:9100"], labels = { tenant = var.tenant, env = var.environment, role = "backend", plan = var.plan } },
+    { targets = ["${aws_instance.db.private_ip}:9100"], labels = { tenant = var.tenant, env = var.environment, role = "db", plan = var.plan } },
   ])
 }

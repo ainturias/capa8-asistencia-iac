@@ -47,9 +47,9 @@ variable "admin_cidr" {
 }
 
 variable "monitoring_cidr" {
-  description = "CIDR del servidor Prometheus que puede leer node_exporter (:9100)."
+  description = "CIDR que puede leer node_exporter (:9100). null = CIDR de la VPC (Prometheus dentro de la VPC)."
   type        = string
-  default     = "0.0.0.0/0"
+  default     = null
 }
 
 variable "db_password" {

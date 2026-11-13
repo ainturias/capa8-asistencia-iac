@@ -1,0 +1,50 @@
+- name: Usuario de servicio
+  ansible.builtin.user: { name: "{{ app_user }}", system: true, shell: /usr/sbin/nologin, home: "{{ app_root }}" }
+
+- name: Directorios
+  ansible.builtin.file: { path: "{{ item }}", state: directory, owner: "{{ app_user }}", mode: "0755" }
+  loop: ["{{ app_root }}", "{{ app_root }}/server"]
+
+- name: Código compilado del backend (artefacto)
+  ansible.builtin.unarchive:
+    src: "{{ server_artifact }}"
+    dest: "{{ app_root }}/server"
+    owner: "{{ app_user }}"
+    extra_opts: ["--no-overwrite-dir"]
+  register: server_code
+  notify: restart backend
+
+- name: ¿Hay node_modules?
+  ansible.builtin.stat: { path: "{{ app_root }}/server/node_modules" }
+  register: nm
+
+- name: Dependencias de producción (solo si cambió el código o faltan)
+  become_user: "{{ app_user }}"
+  ansible.builtin.command: npm ci --omit=dev --no-audit --no-fund
+  args: { chdir: "{{ app_root }}/server" }
+  environment: { HOME: "{{ app_root }}" }
+  when: server_code is changed or not nm.stat.exists
+
+- name: Configuración (.env) fuera del repositorio
+  ansible.builtin.template:
+    src: backend.env.j2
+    dest: /etc/asistencia-backend.env
+    owner: root
+    group: "{{ app_user }}"
+    mode: "0640"
+  no_log: true
+  notify: restart backend
+
+- name: Servicio systemd
+  ansible.builtin.template: { src: asistencia-backend.service.j2, dest: /etc/systemd/system/asistencia-backend.service, mode: "0644" }
+  notify: restart backend
+
+- name: Backend activo
+  ansible.builtin.systemd: { name: asistencia-backend, enabled: true, state: started, daemon_reload: true }
+
+- name: Esperar a que la API responda (corre las migraciones al arrancar)
+  ansible.builtin.uri: { url: "http://127.0.0.1:3000/api/health", status_code: 200 }
+  register: health
+  retries: 24
+  delay: 5
+  until: health.status == 200

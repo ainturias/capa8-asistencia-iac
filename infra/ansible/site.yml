@@ -1,0 +1,16 @@
+# Orden obligatorio: BD -> backend -> frontend. Idempotente: se puede repetir.
+- import_playbook: base.yml
+
+- hosts: db
+  become: true
+  roles: [db]
+
+- hosts: backend
+  become: true
+  vars:
+    frontend_public_ip: "{{ groups['frontend'][0] }}"
+  roles: [backend]
+
+- hosts: frontend
+  become: true
+  roles: [frontend]

@@ -1,0 +1,17 @@
+[Unit]
+Description=Asistencia backend (tenant {{ tenant_id }})
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User={{ app_user }}
+WorkingDirectory={{ app_root }}/server
+EnvironmentFile=/etc/asistencia-backend.env
+ExecStart=/usr/bin/node dist/main
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,50 @@
+- name: Verificar que llegó la contraseña de BD
+  ansible.builtin.assert:
+    that: db_password | length >= 12
+    fail_msg: "Exporta TENANT_DB_PASSWORD (tofu output -raw db_password)"
+  no_log: true
+
+- name: PostgreSQL
+  ansible.builtin.apt: { name: [postgresql, postgresql-contrib, acl], state: present, update_cache: true }
+
+- name: Escuchar en la red privada (el SG solo deja entrar al backend del tenant)
+  ansible.builtin.copy:
+    dest: "/etc/postgresql/{{ pg_version }}/main/conf.d/tenant.conf"
+    content: |
+      listen_addresses = '*'
+      password_encryption = scram-sha-256
+    mode: "0644"
+  notify: restart postgresql
+
+- name: Permitir solo al backend (IP privada) en pg_hba
+  ansible.builtin.lineinfile:
+    path: "/etc/postgresql/{{ pg_version }}/main/pg_hba.conf"
+    line: "host  {{ db_name }}  {{ db_user }}  {{ backend_host }}/32  scram-sha-256"
+    insertafter: EOF
+  notify: reload postgresql
+
+- name: Servicio PostgreSQL activo
+  ansible.builtin.systemd: { name: postgresql, enabled: true, state: started }
+
+- name: Rol de la aplicación
+  become_user: postgres
+  ansible.builtin.shell: |
+    psql -v ON_ERROR_STOP=1 <<'SQL'
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{ db_user }}') THEN
+        CREATE ROLE {{ db_user }} LOGIN PASSWORD '{{ db_password }}';
+      ELSE
+        ALTER ROLE {{ db_user }} PASSWORD '{{ db_password }}';
+      END IF;
+    END $$;
+    SQL
+  no_log: true
+  changed_when: false
+
+- name: Base de datos exclusiva del tenant
+  become_user: postgres
+  ansible.builtin.shell: |
+    if psql -tAc "SELECT 1 FROM pg_database WHERE datname='{{ db_name }}'" | grep -q 1; then echo EXISTS
+    else createdb -O {{ db_user }} {{ db_name }} && echo CREATED; fi
+  register: createdb
+  changed_when: "'CREATED' in createdb.stdout"

@@ -1,0 +1,26 @@
+- name: nginx
+  ansible.builtin.apt: { name: nginx, state: present, update_cache: true }
+
+- name: Directorio web
+  ansible.builtin.file: { path: /var/www/asistencia, state: directory, mode: "0755" }
+
+- name: Build del frontend (artefacto)
+  ansible.builtin.unarchive:
+    src: "{{ client_artifact }}"
+    dest: /var/www/asistencia
+    extra_opts: ["--no-overwrite-dir"]
+
+- name: Sitio nginx con proxy a la API del MISMO tenant
+  ansible.builtin.template: { src: nginx-site.conf.j2, dest: /etc/nginx/sites-available/asistencia, mode: "0644" }
+  notify: reload nginx
+
+- name: Activar sitio y quitar el de ejemplo
+  ansible.builtin.file: { src: /etc/nginx/sites-available/asistencia, dest: /etc/nginx/sites-enabled/asistencia, state: link }
+  notify: reload nginx
+
+- name: Quitar default
+  ansible.builtin.file: { path: /etc/nginx/sites-enabled/default, state: absent }
+  notify: reload nginx
+
+- name: nginx activo
+  ansible.builtin.systemd: { name: nginx, enabled: true, state: started }

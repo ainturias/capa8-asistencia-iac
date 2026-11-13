@@ -1,0 +1,4 @@
+# Usado por Packer (imagen) y por site.yml (si la VM no viene de la AMI).
+- hosts: all
+  become: true
+  roles: [base]

@@ -29,5 +29,5 @@ variable "admin_cidr" {
 }
 variable "monitoring_cidr" {
   type    = string
-  default = "0.0.0.0/0"
+  default = null
 }

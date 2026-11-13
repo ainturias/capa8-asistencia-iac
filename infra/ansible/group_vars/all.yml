@@ -1,0 +1,23 @@
+# Variables comunes. tenant_id, plan, db_host, backend_host, db_name, db_user llegan del inventario
+# generado por OpenTofu/Terraform (output ansible_inventory).
+ansible_user: ubuntu
+ansible_become: true
+
+app_user: asistencia
+app_root: /opt/asistencia
+node_major: 20
+pg_version: 14                       # Ubuntu 22.04
+swap_size_mb: 2048
+
+# Artefactos construidos en el equipo de control con ./build-artifacts.sh
+server_artifact: "{{ playbook_dir }}/artifacts/server.tgz"
+client_artifact: "{{ playbook_dir }}/artifacts/client.tgz"
+
+# --- Secretos: NUNCA en el repo ---
+# La contraseña de BD viene de OpenTofu (output sensible) por variable de entorno.
+db_password: "{{ lookup('env', 'TENANT_DB_PASSWORD') }}"
+secrets_dir: "{{ playbook_dir }}/.secrets/{{ tenant_id | default('local') }}"
+jwt_secret: "{{ lookup('ansible.builtin.password', secrets_dir ~ '/jwt_secret length=48 chars=ascii_letters,digits') }}"
+admin_email: "{{ lookup('env', 'TENANT_ADMIN_EMAIL') | default('admin@' ~ (tenant_id | default('local')) ~ '.local', true) }}"
+admin_password: "{{ lookup('ansible.builtin.password', secrets_dir ~ '/admin_password length=16 chars=ascii_letters,digits') }}"
+app_timezone: America/La_Paz

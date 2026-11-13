@@ -12,6 +12,8 @@ locals {
   name = "tenant-${var.tenant}"
   ami  = coalesce(var.ami_id, data.aws_ami.ubuntu.id)
 
+  mon_cidr = coalesce(var.monitoring_cidr, data.aws_vpc.default.cidr_block)
+
   db_name     = "asistencia_${replace(var.tenant, "-", "_")}"
   db_user     = "app_${replace(var.tenant, "-", "_")}"
   db_password = coalesce(var.db_password, random_password.db.result)
@@ -65,7 +67,7 @@ resource "aws_security_group" "frontend" {
     from_port   = 9100
     to_port     = 9100
     protocol    = "tcp"
-    cidr_blocks = [var.monitoring_cidr]
+    cidr_blocks = [local.mon_cidr]
   }
   egress {
     from_port   = 0
@@ -99,7 +101,7 @@ resource "aws_security_group" "backend" {
     from_port   = 9100
     to_port     = 9100
     protocol    = "tcp"
-    cidr_blocks = [var.monitoring_cidr]
+    cidr_blocks = [local.mon_cidr]
   }
   egress {
     from_port   = 0
@@ -133,7 +135,7 @@ resource "aws_security_group" "db" {
     from_port   = 9100
     to_port     = 9100
     protocol    = "tcp"
-    cidr_blocks = [var.monitoring_cidr]
+    cidr_blocks = [local.mon_cidr]
   }
   egress {
     from_port   = 0
@@ -203,6 +205,13 @@ resource "aws_instance" "frontend" {
     tenant = var.tenant, role = "frontend", environment = var.environment, plan = var.plan
   })
   tags = { Name = "${local.name}-frontend", Role = "frontend" }
+}
+
+# IP fija para el frontend: la URL del tenant NO cambia al suspender/reanudar.
+resource "aws_eip" "frontend" {
+  domain   = "vpc"
+  instance = aws_instance.frontend.id
+  tags     = { Name = "${local.name}-frontend", Role = "frontend" }
 }
 
 # --------------- Suspender / reanudar (RF-16, RF-17) ---------------

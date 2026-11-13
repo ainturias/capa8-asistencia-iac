@@ -1,0 +1,37 @@
+- name: Paquetes del sistema
+  ansible.builtin.apt:
+    name: [curl, ca-certificates, gnupg, unzip, tar, ufw, prometheus-node-exporter]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: ¿Node ya instalado?
+  ansible.builtin.command: node --version
+  register: node_ver
+  changed_when: false
+  failed_when: false
+
+- name: Repositorio NodeSource {{ node_major }}
+  ansible.builtin.shell: curl -fsSL https://deb.nodesource.com/setup_{{ node_major }}.x | bash -
+  when: node_ver.rc != 0 or not (node_ver.stdout | regex_search('^v' ~ node_major ~ '\\.'))
+
+- name: Node.js
+  ansible.builtin.apt: { name: nodejs, state: present, update_cache: true }
+
+- name: Swap (las VMs t3.micro tienen 1 GB de RAM)
+  ansible.builtin.shell: |
+    fallocate -l {{ swap_size_mb }}M /swapfile && chmod 600 /swapfile && mkswap /swapfile
+  args: { creates: /swapfile }
+  register: swap_created
+
+- name: Activar swap
+  ansible.builtin.shell: swapon /swapfile
+  when: swap_created is changed
+
+- name: Swap persistente
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    line: "/swapfile none swap sw 0 0"
+
+- name: node_exporter activo (métricas :9100 para Prometheus)
+  ansible.builtin.systemd: { name: prometheus-node-exporter, enabled: true, state: started }

@@ -1,0 +1,12 @@
+# Playbook que usa Packer para hornear la AMI: todo lo pesado queda preinstalado.
+- hosts: all
+  become: true
+  roles: [base]
+  tasks:
+    - name: Paquetes de los 3 roles preinstalados
+      ansible.builtin.apt: { name: [nginx, postgresql, postgresql-contrib, acl], state: present }
+    - name: PostgreSQL y nginx apagados en la imagen (cada rol los activa en su VM)
+      ansible.builtin.systemd: { name: "{{ item }}", enabled: false, state: stopped }
+      loop: [postgresql, nginx]
+    - name: Limpiar cache apt
+      ansible.builtin.apt: { autoclean: true, autoremove: true }
