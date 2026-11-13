@@ -1,0 +1,22 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "StacksDeTenants",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateStack", "cloudformation:UpdateStack", "cloudformation:DeleteStack",
+        "cloudformation:CreateChangeSet", "cloudformation:DescribeChangeSet", "cloudformation:ExecuteChangeSet", "cloudformation:DeleteChangeSet",
+        "cloudformation:DescribeStacks", "cloudformation:DescribeStackEvents", "cloudformation:DescribeStackResources",
+        "cloudformation:ListStackResources", "cloudformation:GetTemplate", "cloudformation:TagResource"
+      ],
+      "Resource": "arn:aws:cloudformation:*:*:stack/tenant-*/*"
+    },
+    {
+      "Sid": "SinRecursoEspecifico",
+      "Effect": "Allow",
+      "Action": ["cloudformation:ValidateTemplate", "cloudformation:GetTemplateSummary", "cloudformation:ListStacks"],
+      "Resource": "*"
+    }
+  ]
+}

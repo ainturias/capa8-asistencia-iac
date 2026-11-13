@@ -22,9 +22,9 @@ else echo '{}' > "$OUT/trivy.json"; fi
 
 # 3) Checkov
 if command -v checkov >/dev/null; then
-  checkov -d "$ROOT/infra" --framework terraform -o json --quiet > "$OUT/checkov.json" 2>/dev/null
+  checkov -d "$ROOT/infra" --framework terraform,cloudformation -o json --quiet > "$OUT/checkov.json" 2>/dev/null
 elif command -v docker >/dev/null; then
-  docker run --rm -v "$ROOT/infra:/src:ro" bridgecrew/checkov -d /src --framework terraform -o json --quiet > "$OUT/checkov.json" 2>/dev/null
+  docker run --rm -v "$ROOT/infra:/src:ro" bridgecrew/checkov -d /src --framework terraform,cloudformation -o json --quiet > "$OUT/checkov.json" 2>/dev/null
 else echo '{}' > "$OUT/checkov.json"; fi
 
 # Resumen (requiere node, ya presente en el proyecto)

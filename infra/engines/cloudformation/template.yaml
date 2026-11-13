@@ -1,0 +1,208 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Tenant de Asistencia: 3 VMs (frontend, backend, BD) con red aislada por grupos de seguridad.
+  Misma arquitectura que infra/modules/tenant (OpenTofu/Terraform) y que engines/pulumi.
+
+Parameters:
+  Tenant:
+    Type: String
+    AllowedPattern: "^[a-z0-9][a-z0-9-]{1,30}$"
+    Description: Identificador unico del tenant (slug).
+  Plan:
+    Type: String
+    Default: basic
+    AllowedValues: [basic, standard, advanced]
+  Environment:
+    Type: String
+    Default: prod
+  AmiId:
+    Type: AWS::EC2::Image::Id
+    Description: AMI creada con Packer (o Ubuntu 22.04).
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC en la que viven tenants y monitoreo (la VPC por defecto).
+  VpcCidr:
+    Type: String
+    Description: CIDR de la VPC; node_exporter solo se abre dentro de ella.
+  AdminCidr:
+    Type: String
+    Default: 0.0.0.0/0
+    Description: Desde donde se permite SSH (Ansible).
+  PublicKey:
+    Type: String
+    Description: Llave publica SSH (no es secreto).
+
+# Catalogo de planes: debe coincidir con docs/catalogo-de-planes.md
+Mappings:
+  Plans:
+    basic:    { AppType: t3.micro,  DbType: t3.micro,  AppDisk: 10, DbDisk: 10 }
+    standard: { AppType: t3.small,  DbType: t3.small,  AppDisk: 20, DbDisk: 20 }
+    advanced: { AppType: t3.medium, DbType: t3.medium, AppDisk: 30, DbDisk: 50 }
+
+Resources:
+  KeyPair:
+    Type: AWS::EC2::KeyPair
+    Properties:
+      KeyName: !Sub "tenant-${Tenant}-key"
+      PublicKeyMaterial: !Ref PublicKey
+
+  FrontendSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "tenant-${Tenant}-frontend"
+      GroupDescription: HTTP publico + SSH admin
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { Description: HTTP, IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0 }
+        - { Description: SSH admin, IpProtocol: tcp, FromPort: 22, ToPort: 22, CidrIp: !Ref AdminCidr }
+        - { Description: node_exporter, IpProtocol: tcp, FromPort: 9100, ToPort: 9100, CidrIp: !Ref VpcCidr }
+
+  BackendSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "tenant-${Tenant}-backend"
+      GroupDescription: API solo desde el frontend + SSH admin
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { Description: API solo desde el frontend del tenant, IpProtocol: tcp, FromPort: 3000, ToPort: 3000, SourceSecurityGroupId: !GetAtt FrontendSG.GroupId }
+        - { Description: SSH admin, IpProtocol: tcp, FromPort: 22, ToPort: 22, CidrIp: !Ref AdminCidr }
+        - { Description: node_exporter, IpProtocol: tcp, FromPort: 9100, ToPort: 9100, CidrIp: !Ref VpcCidr }
+
+  DbSG:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "tenant-${Tenant}-db"
+      GroupDescription: PostgreSQL solo desde el backend del tenant
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - { Description: PostgreSQL solo desde el backend del tenant, IpProtocol: tcp, FromPort: 5432, ToPort: 5432, SourceSecurityGroupId: !GetAtt BackendSG.GroupId }
+        - { Description: SSH admin, IpProtocol: tcp, FromPort: 22, ToPort: 22, CidrIp: !Ref AdminCidr }
+        - { Description: node_exporter, IpProtocol: tcp, FromPort: 9100, ToPort: 9100, CidrIp: !Ref VpcCidr }
+
+  Db:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !FindInMap [Plans, !Ref Plan, DbType]
+      KeyName: !Ref KeyPair
+      SecurityGroupIds: [!GetAtt DbSG.GroupId]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: { VolumeSize: !FindInMap [Plans, !Ref Plan, DbDisk], VolumeType: gp3, Encrypted: true }
+      UserData:
+        Fn::Base64: !Sub |
+          #cloud-config
+          hostname: ${Tenant}-db
+          manage_etc_hosts: true
+          package_update: true
+          packages: [python3, python3-apt, prometheus-node-exporter]
+          write_files:
+            - path: /etc/tenant.env
+              permissions: "0644"
+              content: |
+                TENANT_ID=${Tenant}
+                ROLE=db
+                ENVIRONMENT=${Environment}
+                PLAN=${Plan}
+          runcmd:
+            - systemctl enable --now prometheus-node-exporter
+      Tags:
+        - { Key: Name, Value: !Sub "tenant-${Tenant}-db" }
+        - { Key: Role, Value: db }
+        - { Key: Tenant, Value: !Ref Tenant }
+        - { Key: Plan, Value: !Ref Plan }
+        - { Key: Env, Value: !Ref Environment }
+        - { Key: Project, Value: capa8-asistencia }
+        - { Key: ManagedBy, Value: cloudformation }
+
+  Backend:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !FindInMap [Plans, !Ref Plan, AppType]
+      KeyName: !Ref KeyPair
+      SecurityGroupIds: [!GetAtt BackendSG.GroupId]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: { VolumeSize: !FindInMap [Plans, !Ref Plan, AppDisk], VolumeType: gp3, Encrypted: true }
+      UserData:
+        Fn::Base64: !Sub |
+          #cloud-config
+          hostname: ${Tenant}-backend
+          manage_etc_hosts: true
+          package_update: true
+          packages: [python3, python3-apt, prometheus-node-exporter]
+          write_files:
+            - path: /etc/tenant.env
+              permissions: "0644"
+              content: |
+                TENANT_ID=${Tenant}
+                ROLE=backend
+                ENVIRONMENT=${Environment}
+                PLAN=${Plan}
+          runcmd:
+            - systemctl enable --now prometheus-node-exporter
+      Tags:
+        - { Key: Name, Value: !Sub "tenant-${Tenant}-backend" }
+        - { Key: Role, Value: backend }
+        - { Key: Tenant, Value: !Ref Tenant }
+        - { Key: Plan, Value: !Ref Plan }
+        - { Key: Env, Value: !Ref Environment }
+        - { Key: Project, Value: capa8-asistencia }
+        - { Key: ManagedBy, Value: cloudformation }
+
+  Frontend:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !FindInMap [Plans, !Ref Plan, AppType]
+      KeyName: !Ref KeyPair
+      SecurityGroupIds: [!GetAtt FrontendSG.GroupId]
+      MetadataOptions: { HttpTokens: required }
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: { VolumeSize: !FindInMap [Plans, !Ref Plan, AppDisk], VolumeType: gp3, Encrypted: true }
+      UserData:
+        Fn::Base64: !Sub |
+          #cloud-config
+          hostname: ${Tenant}-frontend
+          manage_etc_hosts: true
+          package_update: true
+          packages: [python3, python3-apt, prometheus-node-exporter]
+          write_files:
+            - path: /etc/tenant.env
+              permissions: "0644"
+              content: |
+                TENANT_ID=${Tenant}
+                ROLE=frontend
+                ENVIRONMENT=${Environment}
+                PLAN=${Plan}
+          runcmd:
+            - systemctl enable --now prometheus-node-exporter
+      Tags:
+        - { Key: Name, Value: !Sub "tenant-${Tenant}-frontend" }
+        - { Key: Role, Value: frontend }
+        - { Key: Tenant, Value: !Ref Tenant }
+        - { Key: Plan, Value: !Ref Plan }
+        - { Key: Env, Value: !Ref Environment }
+        - { Key: Project, Value: capa8-asistencia }
+        - { Key: ManagedBy, Value: cloudformation }
+
+  # IP fija: la URL del tenant no cambia al suspender/reanudar
+  FrontendIp:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref Frontend
+      Tags: [{ Key: Name, Value: !Sub "tenant-${Tenant}-frontend" }]
+
+Outputs:
+  FrontendPublicIp: { Value: !Ref FrontendIp }
+  FrontendPrivateIp: { Value: !GetAtt Frontend.PrivateIp }
+  BackendPublicIp: { Value: !GetAtt Backend.PublicIp }
+  BackendPrivateIp: { Value: !GetAtt Backend.PrivateIp }
+  DbPublicIp: { Value: !GetAtt Db.PublicIp }
+  DbPrivateIp: { Value: !GetAtt Db.PrivateIp }
+  Url: { Value: !Sub "http://${FrontendIp}" }

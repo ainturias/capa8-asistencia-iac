@@ -1,0 +1,6 @@
+name: capa8-tenant
+runtime:
+  name: nodejs
+  options:
+    typescript: true
+description: Tenant de Asistencia (3 VMs) con Pulumi. Misma arquitectura que infra/modules/tenant.

@@ -1,0 +1,14 @@
+{
+  "name": "capa8-tenant-pulumi",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.ts",
+  "dependencies": {
+    "@pulumi/aws": "^6.66.0",
+    "@pulumi/pulumi": "^3.149.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "typescript": "^5.7.0"
+  }
+}

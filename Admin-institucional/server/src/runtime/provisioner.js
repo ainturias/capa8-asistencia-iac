@@ -26,7 +26,14 @@ const ALLOWED = {
   error: ['crear', 'destruir-plan', 'destruir'],
   eliminado: ['crear'],
 };
-const IMPLEMENTED_ENGINES = new Set(['opentofu', 'terraform']);
+const IMPLEMENTED_ENGINES = new Set(['opentofu', 'terraform', 'pulumi', 'cloudformation']);
+// Archivo(s) que definen la plantilla de cada motor y comando para conocer su versión
+const ENGINE_TEMPLATES = {
+  opentofu: { dir: 'infra/modules/tenant', ext: '.tf', version: ['tofu', ['version']] },
+  terraform: { dir: 'infra/modules/tenant', ext: '.tf', version: ['terraform', ['version']] },
+  pulumi: { dir: 'infra/engines/pulumi', ext: 'index.ts', version: ['pulumi', ['version']] },
+  cloudformation: { dir: 'infra/engines/cloudformation', ext: 'template.yaml', version: ['aws', ['--version']] },
+};
 const LOG_LIMIT = 200_000;
 const FLUSH_MS = 1500;
 const JOB_TIMEOUT_MS = 25 * 60 * 1000;
@@ -68,12 +75,13 @@ function runCapture(command, args, options = {}) {
   });
 }
 
-async function moduleHash(root) {
+async function moduleHash(root, engine) {
   try {
-    const dir = path.join(root, 'infra', 'modules', 'tenant');
-    const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.tf')).sort();
+    const { dir, ext } = ENGINE_TEMPLATES[engine];
+    const base = path.join(root, dir);
+    const files = (await fs.readdir(base)).filter((f) => f.endsWith(ext)).sort();
     const hash = crypto.createHash('sha256');
-    for (const file of files) hash.update(await fs.readFile(path.join(dir, file)));
+    for (const file of files) hash.update(await fs.readFile(path.join(base, file)));
     return hash.digest('hex').slice(0, 12);
   } catch {
     return null;
@@ -82,19 +90,19 @@ async function moduleHash(root) {
 
 // RF-13: versiones de la aplicación, las plantillas y las herramientas usadas en cada despliegue
 async function collectVersions(cfg, engine, infraPlan) {
-  const bin = engine === 'opentofu' ? 'tofu' : 'terraform';
+  const [bin, args] = ENGINE_TEMPLATES[engine].version;
   const [engineVersion, ansible, gitCommit, hash] = await Promise.all([
-    runCapture(bin, ['version']),
+    runCapture(bin, args),
     runCapture('ansible', ['--version']),
     runCapture('git', ['-C', cfg.root, 'rev-parse', '--short', 'HEAD']),
-    moduleHash(cfg.root),
+    moduleHash(cfg.root, engine),
   ]);
   return {
     engine: { name: engine, version: engineVersion?.split('\n')[0] ?? null },
     ansible: ansible?.split('\n')[0] ?? null,
     codeCommit: gitCommit,
     moduleHash: hash,
-    moduleName: 'infra/modules/tenant',
+    moduleName: ENGINE_TEMPLATES[engine].dir,
     imageId: cfg.amiId || 'ubuntu-22.04 (sin AMI de Packer)',
     infraPlan,
   };
@@ -115,7 +123,7 @@ function childEnv(adminEmail, cfg) {
   const env = { LANG: 'C.UTF-8', TENANT_ADMIN_EMAIL: adminEmail, TENANT_REGION: cfg.region };
   for (const [key, value] of Object.entries(process.env)) {
     // Lista blanca: nada de PLATFORM_*, DATABASE_URL ni contraseñas de la plataforma llega al proceso hijo
-    if (/^(PATH|HOME|USER|SHELL|TMPDIR|TF_ENCRYPTION|AWS_.*|ANSIBLE_.*|PACKER_.*)$/.test(key) && value !== undefined) env[key] = value;
+    if (/^(PATH|HOME|USER|SHELL|TMPDIR|TF_ENCRYPTION|AWS_.*|ANSIBLE_.*|PACKER_.*|PULUMI_.*)$/.test(key) && value !== undefined) env[key] = value;
   }
   return env;
 }
@@ -265,7 +273,7 @@ function createProvisioner(pool) {
           throw new ProvisionerError(409, `No se puede ${operation} un tenant en estado "${t.lifecycle_status}".`);
         }
         if (!IMPLEMENTED_ENGINES.has(t.engine)) {
-          throw new ProvisionerError(422, `El motor "${t.engine}" todavía no está integrado en esta plataforma. Usa OpenTofu o Terraform.`);
+          throw new ProvisionerError(422, `El motor "${t.engine}" todavía no está integrado en esta plataforma. Usa OpenTofu, Terraform, Pulumi o CloudFormation.`);
         }
         if (!t.infra_plan) throw new ProvisionerError(422, `El plan "${t.plan_name}" no tiene equivalente en la infraestructura. Usa Básico, Estándar o Avanzado.`);
         if (t.region !== cfg.region) throw new ProvisionerError(422, `Por ahora solo se aprovisiona en ${cfg.region} (la imagen del sistema es de esa región).`);
