@@ -1,0 +1,271 @@
+{
+ "schema_version": 1,
+ "diagram_type": "architecture",
+ "meta": {
+  "title": "Arquitectura general · plataforma de tenants (Capa 8)",
+  "output": "01-arquitectura.html",
+  "quality_profile": "showcase"
+ },
+ "components": [
+  {
+   "id": "operador",
+   "type": "external",
+   "label": "Operador",
+   "sublabel": "admin",
+   "pos": [
+    20,
+    300
+   ],
+   "size": [
+    100,
+    60
+   ]
+  },
+  {
+   "id": "plataforma",
+   "type": "frontend",
+   "label": "Plataforma",
+   "sublabel": "React :5175 · API :4300",
+   "tag": "runner",
+   "pos": [
+    150,
+    300
+   ],
+   "size": [
+    140,
+    64
+   ]
+  },
+  {
+   "id": "pgplat",
+   "type": "database",
+   "label": "BD plataforma",
+   "sublabel": "PostgreSQL · trabajos",
+   "pos": [
+    150,
+    130
+   ],
+   "size": [
+    140,
+    60
+   ]
+  },
+  {
+   "id": "scanners",
+   "type": "security",
+   "label": "Escáneres",
+   "sublabel": "gitleaks · trivy · checkov",
+   "pos": [
+    330,
+    130
+   ],
+   "size": [
+    170,
+    60
+   ]
+  },
+  {
+   "id": "script",
+   "type": "backend",
+   "label": "tenant.sh",
+   "sublabel": "4 motores IaC",
+   "tag": "state S3 cifrado",
+   "pos": [
+    330,
+    300
+   ],
+   "size": [
+    170,
+    64
+   ]
+  },
+  {
+   "id": "ami",
+   "type": "cloud",
+   "label": "AMI base",
+   "sublabel": "Packer",
+   "pos": [
+    600,
+    130
+   ],
+   "size": [
+    110,
+    60
+   ]
+  },
+  {
+   "id": "ansible",
+   "type": "backend",
+   "label": "Ansible",
+   "sublabel": "cloud-init + SSH",
+   "pos": [
+    770,
+    130
+   ],
+   "size": [
+    120,
+    60
+   ]
+  },
+  {
+   "id": "fe",
+   "type": "frontend",
+   "label": "Frontend",
+   "sublabel": "nginx :80 · IP fija",
+   "pos": [
+    600,
+    300
+   ],
+   "size": [
+    110,
+    60
+   ]
+  },
+  {
+   "id": "be",
+   "type": "backend",
+   "label": "Backend",
+   "sublabel": "NestJS :3000",
+   "pos": [
+    770,
+    300
+   ],
+   "size": [
+    120,
+    60
+   ]
+  },
+  {
+   "id": "db",
+   "type": "database",
+   "label": "BD del tenant",
+   "sublabel": "PostgreSQL :5432",
+   "pos": [
+    950,
+    300
+   ],
+   "size": [
+    120,
+    60
+   ]
+  },
+  {
+   "id": "mon",
+   "type": "cloud",
+   "label": "Monitoreo",
+   "sublabel": "Prometheus · Grafana",
+   "tag": "VM aparte",
+   "pos": [
+    150,
+    470
+   ],
+   "size": [
+    140,
+    60
+   ]
+  }
+ ],
+ "boundaries": [
+  {
+   "kind": "region",
+   "label": "Tenant en AWS us-east-2",
+   "wraps": [
+    "fe",
+    "be",
+    "db"
+   ]
+  }
+ ],
+ "connections": [
+  {
+   "id": "c1",
+   "from": "operador",
+   "to": "plataforma",
+   "label": "Desplegar",
+   "variant": "emphasis",
+   "labelDy": -24
+  },
+  {
+   "id": "c2",
+   "from": "plataforma",
+   "to": "pgplat",
+   "label": "trabajos",
+   "fromSide": "top",
+   "toSide": "bottom"
+  },
+  {
+   "id": "c3",
+   "from": "plataforma",
+   "to": "script",
+   "label": "ejecuta",
+   "labelDy": -24
+  },
+  {
+   "id": "c4",
+   "from": "script",
+   "to": "scanners",
+   "label": "antes del apply",
+   "variant": "security",
+   "fromSide": "top",
+   "toSide": "bottom"
+  },
+  {
+   "id": "c6",
+   "from": "script",
+   "to": "fe",
+   "label": "crea red + 3 VMs",
+   "variant": "emphasis"
+  },
+  {
+   "id": "c7",
+   "from": "ami",
+   "to": "fe",
+   "label": "imagen",
+   "variant": "dashed",
+   "fromSide": "bottom",
+   "toSide": "top",
+   "labelDx": 34,
+   "labelDy": 24
+  },
+  {
+   "id": "c8",
+   "from": "ansible",
+   "to": "be",
+   "label": "configura",
+   "fromSide": "bottom",
+   "toSide": "top",
+   "labelDx": 30,
+   "labelDy": 24
+  },
+  {
+   "id": "c9",
+   "from": "fe",
+   "to": "be",
+   "label": "/api",
+   "labelDy": -20
+  },
+  {
+   "id": "c10",
+   "from": "be",
+   "to": "db",
+   "label": ":5432",
+   "labelDy": -20
+  },
+  {
+   "id": "c11",
+   "from": "mon",
+   "to": "be",
+   "label": "node_exporter :9100",
+   "variant": "dashed"
+  },
+  {
+   "id": "c12",
+   "from": "mon",
+   "to": "plataforma",
+   "label": "alertas",
+   "variant": "dashed",
+   "fromSide": "top",
+   "toSide": "bottom"
+  }
+ ]
+}

@@ -1,0 +1,156 @@
+{
+ "schema_version": 1,
+ "diagram_type": "sequence",
+ "meta": {
+  "title": "Flujo de creación de un tenant",
+  "output": "02-flujo-crear-tenant.html",
+  "quality_profile": "showcase",
+  "column_fit": "spread",
+  "viewBox": [
+   1040,
+   645
+  ]
+ },
+ "participants": [
+  {
+   "id": "operador",
+   "type": "external",
+   "label": "Operador",
+   "sublabel": "plataforma web"
+  },
+  {
+   "id": "api",
+   "type": "backend",
+   "label": "API plataforma",
+   "sublabel": "Express :4300"
+  },
+  {
+   "id": "runner",
+   "type": "backend",
+   "label": "tenant.sh",
+   "sublabel": "runner"
+  },
+  {
+   "id": "scan",
+   "type": "security",
+   "label": "Escáneres",
+   "sublabel": "3 escáneres"
+  },
+  {
+   "id": "motor",
+   "type": "backend",
+   "label": "Motor IaC",
+   "sublabel": "4 motores IaC"
+  },
+  {
+   "id": "aws",
+   "type": "cloud",
+   "label": "AWS",
+   "sublabel": "us-east-2"
+  },
+  {
+   "id": "ansible",
+   "type": "backend",
+   "label": "Ansible",
+   "sublabel": "BD → back → front"
+  }
+ ],
+ "messages": [
+  {
+   "id": "m1",
+   "from": "operador",
+   "to": "api",
+   "y": 175,
+   "label": "Desplegar",
+   "variant": "emphasis"
+  },
+  {
+   "id": "m2",
+   "from": "api",
+   "to": "runner",
+   "y": 208,
+   "label": "valida estado y encola",
+   "variant": "emphasis"
+  },
+  {
+   "id": "m3",
+   "from": "api",
+   "to": "operador",
+   "y": 241,
+   "label": "202 + log en vivo",
+   "variant": "return"
+  },
+  {
+   "id": "m4",
+   "from": "runner",
+   "to": "scan",
+   "y": 274,
+   "label": "revisa el código",
+   "variant": "security"
+  },
+  {
+   "id": "m5",
+   "from": "scan",
+   "to": "runner",
+   "y": 307,
+   "label": "resumen",
+   "variant": "return"
+  },
+  {
+   "id": "m6",
+   "from": "runner",
+   "to": "motor",
+   "y": 340,
+   "label": "apply (state S3)",
+   "variant": "emphasis"
+  },
+  {
+   "id": "m7",
+   "from": "motor",
+   "to": "aws",
+   "y": 373,
+   "label": "red + 3 VMs",
+   "variant": "emphasis"
+  },
+  {
+   "id": "m8",
+   "from": "aws",
+   "to": "motor",
+   "y": 406,
+   "label": "IPs",
+   "variant": "return"
+  },
+  {
+   "id": "m9",
+   "from": "runner",
+   "to": "ansible",
+   "y": 439,
+   "label": "configura",
+   "variant": "emphasis"
+  },
+  {
+   "id": "m10",
+   "from": "ansible",
+   "to": "aws",
+   "y": 472,
+   "label": "SSH a las 3 VMs",
+   "variant": "default"
+  },
+  {
+   "id": "m11",
+   "from": "runner",
+   "to": "api",
+   "y": 505,
+   "label": "URL + éxito",
+   "variant": "return"
+  },
+  {
+   "id": "m12",
+   "from": "api",
+   "to": "operador",
+   "y": 538,
+   "label": "estado Activo",
+   "variant": "return"
+  }
+ ]
+}

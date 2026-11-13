@@ -1,0 +1,181 @@
+{
+ "schema_version": 1,
+ "diagram_type": "lifecycle",
+ "meta": {
+  "title": "Ciclo de vida de un tenant",
+  "output": "03-ciclo-de-vida.html",
+  "quality_profile": "showcase",
+  "viewBox": [
+   1060,
+   660
+  ]
+ },
+ "lanes": [
+  {
+   "id": "main",
+   "label": "Camino principal"
+  },
+  {
+   "id": "eventos",
+   "label": "Suspensión y fallos"
+  },
+  {
+   "id": "terminal",
+   "label": "Salida"
+  }
+ ],
+ "states": [
+  {
+   "id": "sin",
+   "type": "start",
+   "label": "Sin desplegar",
+   "sublabel": "registrada",
+   "lane": "main",
+   "col": 1,
+   "step": "01",
+   "width": 96,
+   "height": 64
+  },
+  {
+   "id": "aprov",
+   "type": "active",
+   "label": "Aprovisionando",
+   "sublabel": "motor + Ansible",
+   "lane": "main",
+   "col": 2,
+   "step": "02",
+   "tag": "en curso",
+   "width": 96,
+   "height": 64
+  },
+  {
+   "id": "activo",
+   "type": "success",
+   "label": "Activo",
+   "sublabel": "app en línea",
+   "lane": "main",
+   "col": 3,
+   "step": "03",
+   "width": 96,
+   "height": 64
+  },
+  {
+   "id": "elimin",
+   "type": "active",
+   "label": "Eliminando",
+   "sublabel": "destroy",
+   "lane": "main",
+   "col": 4,
+   "step": "04",
+   "tag": "confirmación",
+   "width": 96,
+   "height": 64
+  },
+  {
+   "id": "elimdo",
+   "type": "neutral",
+   "label": "Eliminado",
+   "sublabel": "sin recursos",
+   "lane": "terminal",
+   "col": 2,
+   "width": 96,
+   "height": 64
+  },
+  {
+   "id": "susp",
+   "type": "waiting",
+   "label": "Suspendido",
+   "sublabel": "datos intactos",
+   "lane": "eventos",
+   "col": 1,
+   "width": 96,
+   "height": 64
+  },
+  {
+   "id": "error",
+   "type": "failure",
+   "label": "Con error",
+   "sublabel": "mensaje + log",
+   "lane": "eventos",
+   "col": 0,
+   "width": 96,
+   "height": 64,
+   "yOffset": 0
+  }
+ ],
+ "transitions": [
+  {
+   "id": "t1",
+   "from": "sin",
+   "to": "aprov",
+   "label": "Desplegar",
+   "variant": "emphasis"
+  },
+  {
+   "id": "t2",
+   "from": "aprov",
+   "to": "activo",
+   "label": "éxito",
+   "variant": "emphasis"
+  },
+  {
+   "id": "t3",
+   "from": "activo",
+   "to": "elimin",
+   "label": "Eliminar"
+  },
+  {
+   "id": "t4",
+   "from": "elimin",
+   "to": "elimdo",
+   "label": "éxito",
+   "fromSide": "bottom",
+   "toSide": "top",
+   "labelDx": 32,
+   "labelDy": 40
+  },
+  {
+   "id": "t5",
+   "from": "activo",
+   "to": "susp",
+   "label": "Suspender",
+   "fromSide": "bottom",
+   "toSide": "top",
+   "labelDx": 50,
+   "labelDy": 40
+  },
+  {
+   "id": "t6",
+   "from": "susp",
+   "to": "activo",
+   "label": "Reanudar",
+   "variant": "dashed",
+   "labelDx": -45,
+   "labelDy": -40,
+   "fromSide": "top",
+   "toSide": "bottom"
+  },
+  {
+   "id": "t7",
+   "from": "aprov",
+   "to": "error",
+   "label": "falla",
+   "variant": "security",
+   "fromSide": "bottom",
+   "toSide": "top",
+   "labelDx": -50,
+   "labelDy": 40
+  },
+  {
+   "id": "t8",
+   "from": "error",
+   "to": "aprov",
+   "label": "Reintentar",
+   "variant": "dashed",
+   "fromSide": "top",
+   "toSide": "bottom",
+   "labelDx": 44,
+   "labelDy": -40
+  }
+ ]
+}
