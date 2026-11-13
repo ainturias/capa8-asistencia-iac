@@ -3,7 +3,7 @@ import { Link, Navigate, useLocation } from 'react-router'
 import {
   Activity, ArrowLeft, ArrowRight, Building2, Check, ChevronRight, CircleAlert, ClipboardList, Clock3,
   Database, ExternalLink, Eye, EyeOff, Globe2, GraduationCap, History, House, Layers3, Link2, LockKeyhole, LogOut, Mail, Menu, Monitor,
-  Plus, RefreshCw, Search, Server, Settings2, ShieldCheck, X,
+  Plus, RefreshCw, Rocket, Search, Server, Settings2, ShieldCheck, X,
 } from 'lucide-react'
 import {
   ApiError, api, attendanceLoginLink, errorMessage, formatDate, formatNumber, webLink,
@@ -11,7 +11,7 @@ import {
 } from './api'
 import CreatePlanDialog from './CreatePlanDialog'
 import CreateTenantDialog, { type TenantPreview } from './CreateTenantDialog'
-import PlatformAudit from './PlatformAudit'
+import Deployments, { JobsHistory } from './Deployments'
 import PlatformHome from './PlatformHome'
 import PlatformMonitoring from './PlatformMonitoring'
 import PlatformSettings from './PlatformSettings'
@@ -24,6 +24,7 @@ const navigation = [
   { id: 'home', group: 'platform', label: 'Inicio', title: 'Inicio', description: 'Consulta las solicitudes, instituciones y planes de la plataforma.', Icon: House },
   { id: 'requests', group: 'platform', label: 'Solicitudes', title: 'Solicitudes de instituciones', description: 'Revisa las solicitudes y configura el registro de cada institución.', Icon: ClipboardList },
   { id: 'tenants', group: 'platform', label: 'Instituciones', title: 'Instituciones registradas', description: 'Consulta el plan y la configuración de cada institución registrada.', Icon: Building2 },
+  { id: 'deployments', group: 'platform', label: 'Despliegues', title: 'Despliegues', description: 'Despliega, suspende, reanuda o elimina la infraestructura de cada institución y revisa su progreso.', Icon: Rocket },
   { id: 'plans', group: 'platform', label: 'Planes', title: 'Catálogo de planes', description: 'Consulta la capacidad y los recursos que incluye cada plan.', Icon: Layers3 },
   { id: 'monitoring', group: 'platform', label: 'Monitoreo', title: 'Monitoreo', description: 'Consulta el estado de los servicios y el uso de recursos por institución.', Icon: Activity },
   { id: 'audit', group: 'platform', label: 'Auditoría', title: 'Auditoría', description: 'Consulta quién realizó cada acción, cuándo y con qué resultado.', Icon: History },
@@ -38,7 +39,6 @@ const menuGroups = [
 
 const demoViews: Partial<Record<View, ComponentType>> = {
   monitoring: PlatformMonitoring,
-  audit: PlatformAudit,
   settings: PlatformSettings,
 }
 
@@ -551,14 +551,14 @@ function Console({ user, onLogout }: { user: PlatformUser; onLogout: () => void 
           </div>
           {view === 'plans'
             ? <button className="pa-primary pa-create-plan" type="button" disabled={loading} onClick={() => setCreatePlanOpen(true)}><Plus size={18} aria-hidden="true" /> Crear plan</button>
-            : !DemoView && <div className="pa-page-actions">
+            : !DemoView && view !== 'deployments' && view !== 'audit' && <div className="pa-page-actions">
               <button className="pa-secondary pa-refresh" type="button" disabled={loading} onClick={refresh}><RefreshCw size={15} aria-hidden="true" /> Actualizar</button>
               {(view === 'home' || view === 'tenants') && <button className="pa-primary" type="button" aria-haspopup="dialog" disabled={loading || Boolean(error)} onClick={openTenantDialog}><Plus size={18} aria-hidden="true" /> Crear institución</button>}
             </div>}
         </header>
         {logoutError && <ErrorNotice>{logoutError}</ErrorNotice>}
         {notice && <div className="pa-notice" role="status"><Check size={18} /><span>{notice}</span><button type="button" aria-label="Cerrar aviso" onClick={() => setNotice('')}><X size={17} /></button></div>}
-        {DemoView ? <DemoView /> : loading ? <div className="pa-card pa-empty" role="status"><span className="pa-spinner" />Cargando el panel…</div> : error ? <div className="pa-card pa-load-error">
+        {view === 'deployments' ? <Deployments plans={plans} onSessionExpired={onLogout} /> : view === 'audit' ? <JobsHistory onSessionExpired={onLogout} /> : DemoView ? <DemoView /> : loading ? <div className="pa-card pa-empty" role="status"><span className="pa-spinner" />Cargando el panel…</div> : error ? <div className="pa-card pa-load-error">
           <ErrorNotice>{error}</ErrorNotice>
           <button type="button" className="pa-secondary" onClick={refresh}>Volver a intentar</button>
         </div> : view === 'home' ? <PlatformHome requests={requests} plans={plans}

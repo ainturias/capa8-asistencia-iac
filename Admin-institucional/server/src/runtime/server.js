@@ -1,4 +1,5 @@
 const express = require('express');
+const { ProvisionerError, createProvisioner, mountProvisioning } = require('./provisioner');
 const { createPool, migrate, transaction } = require('./db');
 const { InvitationError, allowedTenantOrigin, deliverInvitation, issueTenantInvitation, tenantIsActivated } = require('./invitations');
 const {
@@ -253,7 +254,7 @@ async function refreshTenantActivation(pool, row) {
   return { ...row, invitation_status: 'activated', ...activated };
 }
 
-function createApp(pool, platformOnly) {
+function createApp(pool, platformOnly, provisioner) {
   const app = express();
   app.disable('x-powered-by');
   app.use((request, response, next) => {
@@ -356,10 +357,11 @@ function createApp(pool, platformOnly) {
     response.json(await inviteTenant(pool, request.params.id, request.body));
   });
 
+  mountProvisioning(platform, pool, provisioner);
   app.use('/api/platform', platform);
   app.use((_request, _response, next) => next(new HttpError(404, 'Ruta no encontrada.')));
   app.use((error, _request, response, _next) => {
-    if (error instanceof HttpError || error instanceof InvitationError) {
+    if (error instanceof HttpError || error instanceof InvitationError || error instanceof ProvisionerError) {
       return response.status(error.status).json({ message: error.message });
     }
     if (error.type === 'entity.parse.failed') {
@@ -382,7 +384,10 @@ async function openPlatform(connectionString, platformOnly) {
   try {
     await migrate(pool);
     await bootstrapAdmin(pool, admin);
-    return { handle: createApp(pool, platformOnly), close: () => pool.end() };
+    const provisioner = createProvisioner(pool);
+    const interrupted = await provisioner.recoverInterrupted();
+    if (interrupted) console.warn(`Se marcaron ${interrupted} trabajo(s) interrumpido(s) por el reinicio.`);
+    return { handle: createApp(pool, platformOnly, provisioner), close: () => pool.end() };
   } catch (error) {
     await pool.end();
     throw error;

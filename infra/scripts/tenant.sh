@@ -13,6 +13,7 @@ if [ "$ENGINE" = opentofu ]; then
 else unset TF_ENCRYPTION; fi
 
 VARS=(-var "tenant=$TENANT" -var "plan=$PLAN"); [ -n "$AMI" ] && VARS+=(-var "ami_id=$AMI")
+[ -n "${TENANT_REGION:-}" ] && VARS+=(-var "region=$TENANT_REGION")
 tf() { "$BIN" -chdir="$DIR" "$@"; }
 
 # --- Monitoreo: registrar/quitar los targets del tenant en Prometheus (si el servidor de monitoreo existe) ---

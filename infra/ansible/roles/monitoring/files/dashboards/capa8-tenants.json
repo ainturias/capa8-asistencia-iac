@@ -35,7 +35,7 @@
       "uid": "prometheus"
      },
      "expr": "probe_success{job=\"probes\",instance=~\".*/$\",tenant=~\"$tenant\",env=~\"$env\"}",
-     "legendFormat": "",
+     "legendFormat": "{{tenant}}",
      "instant": true
     }
    ],
@@ -79,6 +79,10 @@
      "calcs": [
       "lastNotNull"
      ]
+    },
+    "text": {
+     "titleSize": 15,
+     "valueSize": 26
     }
    },
    "description": "RF-26: disponibilidad. Sondeo HTTP a la URL del tenant."
@@ -105,7 +109,7 @@
       "uid": "prometheus"
      },
      "expr": "probe_success{job=\"probes\",instance=~\".*/api/health\",tenant=~\"$tenant\",env=~\"$env\"}",
-     "legendFormat": "",
+     "legendFormat": "{{tenant}}",
      "instant": true
     }
    ],
@@ -149,6 +153,10 @@
      "calcs": [
       "lastNotNull"
      ]
+    },
+    "text": {
+     "titleSize": 15,
+     "valueSize": 26
     }
    }
   },
@@ -174,7 +182,7 @@
       "uid": "prometheus"
      },
      "expr": "up{job=\"tenants\",role=\"db\",tenant=~\"$tenant\",env=~\"$env\"}",
-     "legendFormat": "",
+     "legendFormat": "{{tenant}}",
      "instant": true
     }
    ],
@@ -218,6 +226,10 @@
      "calcs": [
       "lastNotNull"
      ]
+    },
+    "text": {
+     "titleSize": 15,
+     "valueSize": 26
     }
    },
    "description": "RF-26: estado de la BD (la VM de BD responde y reporta)."
@@ -296,19 +308,68 @@
       "type": "prometheus",
       "uid": "prometheus"
      },
-     "expr": "ALERTS{alertstate=\"firing\",tenant=~\"$tenant\"}",
-     "legendFormat": "",
-     "instant": true
+     "expr": "(ALERTS_FOR_STATE{tenant=~\"$tenant\"} and ignoring(alertstate) ALERTS{alertstate=\"firing\"}) * 1000",
+     "instant": true,
+     "range": false,
+     "format": "table"
     }
    ],
    "fieldConfig": {
     "defaults": {},
-    "overrides": []
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Hora de detección"
+      },
+      "properties": [
+       {
+        "id": "unit",
+        "value": "dateTimeAsLocal"
+       }
+      ]
+     }
+    ]
    },
    "options": {
-    "showHeader": true
+    "showHeader": true,
+    "cellHeight": "sm"
    },
-   "description": "RF-29: alertas con su tenant. 'Time' es la hora en que se detectó la última evaluación activa."
+   "description": "RF-29: alertas activas con el tenant afectado y la hora en que Prometheus las detectó (cuando empezó la condición).",
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true,
+       "__name__": true,
+       "job": true,
+       "env": true,
+       "plan": true
+      },
+      "renameByName": {
+       "alertname": "Alerta",
+       "tenant": "Tenant afectado",
+       "role": "Rol",
+       "severity": "Severidad",
+       "instance": "Instancia",
+       "Value": "Hora de detección"
+      },
+      "indexByName": {}
+     }
+    },
+    {
+     "id": "sortBy",
+     "options": {
+      "fields": {},
+      "sort": [
+       {
+        "field": "Hora de detección"
+       }
+      ]
+     }
+    }
+   ]
   },
   {
    "id": 6,
@@ -502,17 +563,93 @@
       "uid": "prometheus"
      },
      "expr": "up{job=\"tenants\",tenant=~\"$tenant\",env=~\"$env\"}",
-     "legendFormat": "",
-     "instant": true
+     "instant": true,
+     "range": false,
+     "format": "table"
     }
    ],
    "fieldConfig": {
     "defaults": {},
-    "overrides": []
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Estado"
+      },
+      "properties": [
+       {
+        "id": "mappings",
+        "value": [
+         {
+          "type": "value",
+          "options": {
+           "0": {
+            "text": "CAÍDO",
+            "color": "red",
+            "index": 0
+           },
+           "1": {
+            "text": "EN LÍNEA",
+            "color": "green",
+            "index": 1
+           }
+          }
+         }
+        ]
+       },
+       {
+        "id": "custom.cellOptions",
+        "value": {
+         "type": "color-background"
+        }
+       }
+      ]
+     }
+    ]
    },
    "options": {
-    "showHeader": true
-   }
+    "showHeader": true,
+    "cellHeight": "sm"
+   },
+   "transformations": [
+    {
+     "id": "organize",
+     "options": {
+      "excludeByName": {
+       "Time": true,
+       "__name__": true,
+       "job": true,
+       "plan": true,
+       "env": true
+      },
+      "renameByName": {
+       "tenant": "Tenant",
+       "role": "Rol",
+       "plan": "Plan",
+       "env": "Entorno",
+       "instance": "Instancia",
+       "Value": "Estado"
+      },
+      "indexByName": {
+       "tenant": 0,
+       "role": 1,
+       "instance": 2,
+       "Value": 3
+      }
+     }
+    },
+    {
+     "id": "sortBy",
+     "options": {
+      "fields": {},
+      "sort": [
+       {
+        "field": "Tenant"
+       }
+      ]
+     }
+    }
+   ]
   }
  ],
  "templating": {

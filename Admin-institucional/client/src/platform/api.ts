@@ -113,3 +113,60 @@ export function attendanceLoginLink(origin?: string) {
 export const errorMessage = (error: unknown, fallback: string) => (
   error instanceof ApiError && error.status < 500 ? error.message : fallback
 )
+
+export type LifecycleStatus = 'sin-desplegar' | 'aprovisionando' | 'activo' | 'suspendido' | 'eliminando' | 'eliminado' | 'error'
+export type Operation = 'crear' | 'suspender' | 'reanudar' | 'destruir-plan' | 'destruir'
+export type JobStatus = 'queued' | 'running' | 'succeeded' | 'failed'
+
+export interface DeployedTenant {
+  id: string
+  slug: string
+  institutionName: string
+  adminEmail: string
+  planId: string
+  planName: string
+  infraPlan: string | null
+  environment: string
+  engine: string
+  region: string
+  lifecycleStatus: LifecycleStatus
+  lifecycleUpdatedAt: string
+  deployedUrl: string | null
+  lastJob: { id: string; operation: Operation; status: JobStatus; createdAt: string } | null
+}
+
+export interface JobVersions {
+  engine?: { name: string; version: string | null }
+  ansible?: string | null
+  codeCommit?: string | null
+  moduleHash?: string | null
+  moduleName?: string
+  imageId?: string
+  infraPlan?: string
+}
+
+export interface ScanSummary {
+  generado: string
+  bloquea: boolean
+  escaneres: { nombre: string; tipo: string; hallazgos: number; severidad?: Record<string, number> }[]
+}
+
+export interface Job {
+  id: string
+  operation: Operation
+  engine: string
+  plan: string | null
+  status: JobStatus
+  requestedBy: string
+  retryOf: string | null
+  createdAt: string
+  startedAt: string | null
+  finishedAt: string | null
+  exitCode: number | null
+  errorMessage: string | null
+  versions: JobVersions | null
+  scanSummary: ScanSummary | null
+  slug: string
+  institutionName: string
+  log?: string
+}

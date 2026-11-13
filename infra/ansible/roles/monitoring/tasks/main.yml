@@ -31,8 +31,11 @@
   loop:
     - { src: datasource.yml, dest: /opt/monitoring/grafana/provisioning/datasources/prometheus.yml }
     - { src: dashboards.yml, dest: /opt/monitoring/grafana/provisioning/dashboards/default.yml }
-    - { src: dashboards/capa8-tenants.json, dest: /opt/monitoring/grafana/dashboards/capa8-tenants.json }
   notify: restart stack
+
+# El dashboard se recarga solo desde disco (Grafana lo revisa cada 10 s): no hace falta reiniciar nada.
+- name: Dashboard de tenants
+  ansible.builtin.copy: { src: dashboards/capa8-tenants.json, dest: /opt/monitoring/grafana/dashboards/capa8-tenants.json, mode: "0644" }
 
 - name: Secretos de Grafana (generados, fuera del repo)
   ansible.builtin.copy:
