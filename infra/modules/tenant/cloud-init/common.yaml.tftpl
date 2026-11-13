@@ -1,0 +1,21 @@
+#cloud-config
+# cloud-init: se ejecuta UNA vez en el primer arranque. Deja datos del tenant y el rol de la VM;
+# el despliegue de la app lo hace Ansible (repetible).
+hostname: ${tenant}-${role}
+manage_etc_hosts: true
+package_update: true
+packages:
+  - python3
+  - python3-apt
+  - prometheus-node-exporter
+write_files:
+  - path: /etc/tenant.env
+    permissions: "0644"
+    content: |
+      TENANT_ID=${tenant}
+      ROLE=${role}
+      ENVIRONMENT=${environment}
+      PLAN=${plan}
+runcmd:
+  - systemctl enable --now prometheus-node-exporter
+  - echo "cloud-init listo $(date -Iseconds)" >> /var/log/tenant-bootstrap.log

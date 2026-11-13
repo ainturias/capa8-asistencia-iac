@@ -1,0 +1,5 @@
+# Copiar a backend.hcl (ignorado por git) y ajustar el bucket.
+bucket       = "capa8-tfstate-CAMBIAR"
+region       = "us-east-2"
+encrypt      = true
+use_lockfile = true
