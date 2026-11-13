@@ -1,0 +1,5 @@
+- name: restart stack
+  ansible.builtin.command: docker compose up -d --force-recreate
+  args: { chdir: /opt/monitoring }
+- name: reload prometheus
+  ansible.builtin.uri: { url: "http://127.0.0.1:9090/-/reload", method: POST, status_code: [200, 204] }

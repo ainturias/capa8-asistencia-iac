@@ -1,0 +1,61 @@
+- name: Docker y compose
+  ansible.builtin.apt:
+    name: [docker.io, docker-compose-v2, python3-docker]
+    state: present
+    update_cache: true
+
+- name: Docker activo
+  ansible.builtin.systemd: { name: docker, enabled: true, state: started }
+
+- name: Directorios
+  ansible.builtin.file: { path: "/opt/monitoring/{{ item }}", state: directory, mode: "0755" }
+  loop: [prometheus/rules, prometheus/targets, prometheus/probes, grafana/provisioning/datasources, grafana/provisioning/dashboards, grafana/dashboards, blackbox]
+
+- name: Prometheus (config + reglas de alerta)
+  ansible.builtin.template: { src: prometheus.yml.j2, dest: /opt/monitoring/prometheus/prometheus.yml, mode: "0644" }
+  notify: restart stack
+- ansible.builtin.copy: { src: alerts.yml, dest: /opt/monitoring/prometheus/rules/alerts.yml, mode: "0644" }
+  notify: reload prometheus
+- ansible.builtin.copy:
+    dest: /opt/monitoring/blackbox/blackbox.yml
+    content: |
+      modules:
+        http_2xx:
+          prober: http
+          timeout: 5s
+          http: { valid_status_codes: [], method: GET }
+  notify: restart stack
+
+- name: Grafana como código (datasource + dashboards)
+  ansible.builtin.copy: { src: "{{ item.src }}", dest: "{{ item.dest }}", mode: "0644" }
+  loop:
+    - { src: datasource.yml, dest: /opt/monitoring/grafana/provisioning/datasources/prometheus.yml }
+    - { src: dashboards.yml, dest: /opt/monitoring/grafana/provisioning/dashboards/default.yml }
+    - { src: dashboards/capa8-tenants.json, dest: /opt/monitoring/grafana/dashboards/capa8-tenants.json }
+  notify: restart stack
+
+- name: Secretos de Grafana (generados, fuera del repo)
+  ansible.builtin.copy:
+    dest: /opt/monitoring/.env
+    mode: "0600"
+    content: |
+      GRAFANA_ADMIN_PASSWORD={{ grafana_admin_password }}
+  no_log: true
+  notify: restart stack
+
+- name: docker-compose
+  ansible.builtin.template: { src: docker-compose.yml.j2, dest: /opt/monitoring/docker-compose.yml, mode: "0644" }
+  notify: restart stack
+
+- name: Stack arriba
+  ansible.builtin.command: docker compose up -d
+  args: { chdir: /opt/monitoring }
+  register: up
+  changed_when: "'Started' in up.stderr or 'Created' in up.stderr or 'Recreated' in up.stderr"
+
+- name: Esperar a Grafana
+  ansible.builtin.uri: { url: "http://127.0.0.1:3000/api/health", status_code: 200 }
+  register: g
+  retries: 20
+  delay: 5
+  until: g.status == 200

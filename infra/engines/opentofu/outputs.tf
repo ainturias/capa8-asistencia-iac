@@ -9,3 +9,4 @@ output "db_password" {
   value     = module.tenant.db_password
   sensitive = true
 }
+output "probe_targets" { value = module.tenant.probe_targets }

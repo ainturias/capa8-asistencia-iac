@@ -51,3 +51,11 @@ output "prometheus_targets" {
     { targets = ["${aws_instance.db.private_ip}:9100"], labels = { tenant = var.tenant, env = var.environment, role = "db", plan = var.plan } },
   ])
 }
+
+# Chequeos HTTP del blackbox_exporter: disponibilidad y latencia de la web y de la API (via nginx) de cada tenant.
+output "probe_targets" {
+  value = jsonencode([
+    { targets = ["http://${aws_instance.frontend.private_ip}/", "http://${aws_instance.frontend.private_ip}/api/health"],
+    labels = { tenant = var.tenant, env = var.environment, plan = var.plan } },
+  ])
+}

@@ -1,0 +1,45 @@
+groups:
+  - name: tenants
+    rules:
+      - alert: ServicioCaido
+        expr: up{job="tenants"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "VM {{ $labels.role }} del tenant {{ $labels.tenant }} no responde"
+      - alert: WebOApiCaida
+        expr: probe_success{job="probes"} == 0
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.instance }} no responde (tenant {{ $labels.tenant }})"
+      - alert: LatenciaAlta
+        expr: probe_duration_seconds{job="probes"} > 1
+        for: 2m
+        labels: { severity: warning }
+        annotations:
+          summary: "Latencia alta en {{ $labels.instance }} (tenant {{ $labels.tenant }})"
+      - alert: ErroresDelBackend
+        expr: probe_http_status_code{job="probes"} >= 500
+        for: 1m
+        labels: { severity: critical }
+        annotations:
+          summary: "Errores 5xx en {{ $labels.instance }} (tenant {{ $labels.tenant }})"
+      - alert: CPUAlta
+        expr: 100 - avg by (tenant, role, instance) (rate(node_cpu_seconds_total{mode="idle"}[2m])) * 100 > 80
+        for: 3m
+        labels: { severity: warning }
+        annotations:
+          summary: "CPU > 80% en {{ $labels.role }} (tenant {{ $labels.tenant }})"
+      - alert: MemoriaAlta
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 90
+        for: 3m
+        labels: { severity: warning }
+        annotations:
+          summary: "Memoria > 90% en {{ $labels.role }} (tenant {{ $labels.tenant }})"
+      - alert: DiscoLleno
+        expr: (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"}) * 100 > 85
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "Disco > 85% en {{ $labels.role }} (tenant {{ $labels.tenant }})"

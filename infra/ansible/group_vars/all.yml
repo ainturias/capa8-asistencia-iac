@@ -21,3 +21,7 @@ jwt_secret: "{{ lookup('ansible.builtin.password', secrets_dir ~ '/jwt_secret le
 admin_email: "{{ lookup('env', 'TENANT_ADMIN_EMAIL') | default('admin@' ~ (tenant_id | default('local')) ~ '.local', true) }}"
 admin_password: "{{ lookup('ansible.builtin.password', secrets_dir ~ '/admin_password length=16 chars=ascii_letters,digits') }}"
 app_timezone: America/La_Paz
+
+# --- Monitoreo ---
+grafana_admin_password: "{{ lookup('ansible.builtin.password', playbook_dir ~ '/.secrets/monitoring/grafana_admin_password length=20 chars=ascii_letters,digits') }}"
+grafana_anonymous_viewer: true       # el ingeniero puede ver el panel con solo la URL (solo lectura). Poner false para exigir login.

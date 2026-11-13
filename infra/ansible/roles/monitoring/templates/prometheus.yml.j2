@@ -1,0 +1,17 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+rule_files: ["/etc/prometheus/rules/*.yml"]
+scrape_configs:
+  # Métricas del sistema de cada VM (node_exporter :9100). Los targets los escribe tenant.sh por tenant.
+  - job_name: tenants
+    file_sd_configs: [{ files: ["/etc/prometheus/targets/*.json"], refresh_interval: 15s }]
+  # Disponibilidad y latencia HTTP de la web y de la API (via nginx) de cada tenant.
+  - job_name: probes
+    metrics_path: /probe
+    params: { module: [http_2xx] }
+    file_sd_configs: [{ files: ["/etc/prometheus/probes/*.json"], refresh_interval: 15s }]
+    relabel_configs:
+      - { source_labels: [__address__], target_label: __param_target }
+      - { source_labels: [__param_target], target_label: instance }
+      - { target_label: __address__, replacement: "blackbox:9115" }
