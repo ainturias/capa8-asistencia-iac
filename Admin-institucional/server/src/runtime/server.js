@@ -1,4 +1,5 @@
 const express = require('express');
+const { mountMonitoring } = require('./monitoring');
 const { ProvisionerError, createProvisioner, mountProvisioning } = require('./provisioner');
 const { createPool, migrate, transaction } = require('./db');
 const { InvitationError, allowedTenantOrigin, deliverInvitation, issueTenantInvitation, tenantIsActivated } = require('./invitations');
@@ -358,6 +359,7 @@ function createApp(pool, platformOnly, provisioner) {
   });
 
   mountProvisioning(platform, pool, provisioner);
+  mountMonitoring(platform, pool);
   app.use('/api/platform', platform);
   app.use((_request, _response, next) => next(new HttpError(404, 'Ruta no encontrada.')));
   app.use((error, _request, response, _next) => {

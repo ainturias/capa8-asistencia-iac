@@ -59,3 +59,9 @@
   .dp-row, .dp-hist .dp-row { grid-template-columns: 1fr; }
   .dp-th { display: none; }
 }
+.mo-row { grid-template-columns: 1.4fr .8fr .8fr 2.4fr; }
+.mo-alert { grid-template-columns: 1.8fr 1fr 1.2fr 1.6fr; }
+.mo-events { margin: 0; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; }
+.mo-collectors ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; font-size: 13px; }
+.mo-collectors li small { display: block; color: var(--pa-muted); }
+@media (max-width: 900px) { .mo-row, .mo-alert { grid-template-columns: 1fr; } }
