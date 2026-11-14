@@ -69,7 +69,9 @@ PY
 MON_INV="$ANS/inventory/monitoring.ini"
 mon_push() {  # <archivo_destino_en_servidor> <contenido_json>
   [ -f "$MON_INV" ] || { echo "(monitoreo no desplegado: se omite el registro en Prometheus)"; return 0; }
-  ( cd "$ANS" && ansible monitoring -b -i "$MON_INV" -m copy -a "dest=$1 content='$2' mode=0644" >/dev/null )
+  # Un monitoreo apagado o inalcanzable NO debe hacer fallar el despliegue del tenant: se avisa y se sigue.
+  ( cd "$ANS" && ansible monitoring -b -i "$MON_INV" -m copy -a "dest=$1 content='$2' mode=0644" >/dev/null 2>&1 ) \
+    || echo "AVISO: no se pudo registrar el tenant en Prometheus (¿monitoreo apagado?). Reanuda el monitoreo y vuelve a ejecutar 'Desplegar' para registrarlo."
 }
 mon_remove() {
   [ -f "$MON_INV" ] || return 0
@@ -161,7 +163,16 @@ case "$ACTION" in
     case "$ENGINE" in
       opentofu|terraform) hcl_init; tf destroy -input=false -auto-approve -no-color "${VARS[@]}" ;;
       pulumi) pulumi_prepare; pu destroy --yes --non-interactive --color never; pu stack rm --yes "$STACK" >/dev/null ;;
-      cloudformation) aws cloudformation delete-stack --stack-name "$STACK"; aws cloudformation wait stack-delete-complete --stack-name "$STACK"; echo "Stack eliminado" ;;
+      cloudformation)
+        aws cloudformation delete-stack --stack-name "$STACK"
+        if ! aws cloudformation wait stack-delete-complete --stack-name "$STACK"; then
+          # El manejador de AWS::EC2::KeyPair de CloudFormation falla a veces al borrar: se borra la llave por EC2 y se reintenta sin ella.
+          echo "El borrado falló; se elimina la llave SSH por EC2 y se reintenta."
+          aws ec2 delete-key-pair --key-name "tenant-$TENANT-key" || true
+          aws cloudformation delete-stack --stack-name "$STACK" --retain-resources KeyPair
+          aws cloudformation wait stack-delete-complete --stack-name "$STACK"
+        fi
+        echo "Stack eliminado" ;;
     esac
     mon_remove; rm -rf "$ANS/inventory/$TENANT.ini" ;;
   *) echo "accion desconocida: $ACTION" >&2; exit 2 ;;
