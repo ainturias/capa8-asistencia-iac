@@ -27,3 +27,14 @@ Cada backend conserva sus usuarios y sus datos en su propia base.
 El alta directa de instituciones, la auditoría y el monitoreo tienen pantallas
 de demostración. El flujo de solicitudes e invitaciones usa la API y la base de
 la plataforma. El aprovisionamiento automático desde el panel está pendiente.
+
+## Aprovisionamiento de tenants (proyecto final de Infraestructura como Código)
+
+La plataforma central puede crear, suspender, reanudar y eliminar la infraestructura de cada institución en AWS (3 máquinas por tenant:
+frontend, backend y base de datos propia) con OpenTofu, Terraform, Pulumi o CloudFormation, y monitorearla con Prometheus y Grafana.
+
+- Puesta en marcha, requisitos y costos: [`infra/README.md`](infra/README.md)
+- Estado y secretos (cómo se protegen): [`docs/estado-y-secretos.md`](docs/estado-y-secretos.md)
+- Catálogo de planes: [`docs/catalogo-de-planes.md`](docs/catalogo-de-planes.md)
+- Diagramas de arquitectura, flujo y ciclo de vida: [`docs/diagramas/`](docs/diagramas)
+- Evidencia de aislamiento entre tenants: [`docs/evidencias/`](docs/evidencias)

@@ -7,6 +7,7 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DIR="$ROOT/infra/engines/$ENGINE"; ANS="$ROOT/infra/ansible"
 REGION="${TENANT_REGION:-us-east-2}"; export AWS_DEFAULT_REGION="$REGION"
 STACK="tenant-$TENANT"
+ENV_NAME="${TENANT_ENV:-prod}"   # prod | staging (lo pasa el runner)
 case "$ENGINE" in opentofu) BIN=tofu ;; terraform) BIN=terraform ;; pulumi|cloudformation) BIN="" ;; *) echo "motor no soportado: $ENGINE" >&2; exit 2 ;; esac
 HCL=false; case "$ENGINE" in opentofu|terraform) HCL=true ;; esac
 
@@ -50,16 +51,16 @@ db_host=$DB_PRIV
 backend_host=$BE_PRIV
 db_name=asistencia_$slug
 db_user=app_$slug"
-  PROM_TARGETS="$(python3 - "$TENANT" "$PLAN" "$FE_PRIV" "$BE_PRIV" "$DB_PRIV" <<'PY'
+  PROM_TARGETS="$(python3 - "$TENANT" "$PLAN" "$FE_PRIV" "$BE_PRIV" "$DB_PRIV" "$ENV_NAME" <<'PY'
 import json,sys
-t,p,f,b,d=sys.argv[1:]
-print(json.dumps([{"targets":[f"{ip}:9100"],"labels":{"tenant":t,"env":"prod","role":r,"plan":p}} for r,ip in (("frontend",f),("backend",b),("db",d))]))
+t,p,f,b,d,e=sys.argv[1:]
+print(json.dumps([{"targets":[f"{ip}:9100"],"labels":{"tenant":t,"env":e,"role":r,"plan":p}} for r,ip in (("frontend",f),("backend",b),("db",d))]))
 PY
 )"
-  PROBE_TARGETS="$(python3 - "$TENANT" "$PLAN" "$FE_PRIV" <<'PY'
+  PROBE_TARGETS="$(python3 - "$TENANT" "$PLAN" "$FE_PRIV" "$ENV_NAME" <<'PY'
 import json,sys
-t,p,f=sys.argv[1:]
-print(json.dumps([{"targets":[f"http://{f}/",f"http://{f}/api/health"],"labels":{"tenant":t,"env":"prod","plan":p}}]))
+t,p,f,e=sys.argv[1:]
+print(json.dumps([{"targets":[f"http://{f}/",f"http://{f}/api/health"],"labels":{"tenant":t,"env":e,"plan":p}}]))
 PY
 )"
   TENANT_URL="http://$FE_PUB"
@@ -84,7 +85,7 @@ print_destroy_list() {  # lee "tipo nombre" por stdin
   echo "Plan: 0 to add, 0 to change, $n to destroy."; }
 
 # ------------------------------------------------------------------ HCL (OpenTofu / Terraform)
-VARS=(-var "tenant=$TENANT" -var "plan=$PLAN"); [ -n "$AMI" ] && VARS+=(-var "ami_id=$AMI")
+VARS=(-var "tenant=$TENANT" -var "plan=$PLAN" -var "environment=$ENV_NAME"); [ -n "$AMI" ] && VARS+=(-var "ami_id=$AMI")
 [ -n "${TENANT_REGION:-}" ] && VARS+=(-var "region=$TENANT_REGION")
 tf() { "$BIN" -chdir="$DIR" "$@"; }
 hcl_init() { tf init -input=false -reconfigure -no-color -backend-config=backend.hcl -backend-config="key=tenants/$TENANT/$ENGINE.tfstate" >/dev/null; }
@@ -97,7 +98,7 @@ pulumi_prepare() {
   export PULUMI_CONFIG_PASSPHRASE_FILE="$pass" PULUMI_SKIP_UPDATE_CHECK=true PULUMI_BACKEND_URL="s3://$(bucket)/pulumi?region=$REGION"
   [ -d "$DIR/node_modules" ] || ( cd "$DIR" && npm install --no-audit --no-fund >/dev/null )
   pu stack select --create "$STACK" >/dev/null
-  pu config set aws:region "$REGION" >/dev/null; pu config set tenant "$TENANT" >/dev/null; pu config set plan "$PLAN" >/dev/null
+  pu config set aws:region "$REGION" >/dev/null; pu config set tenant "$TENANT" >/dev/null; pu config set plan "$PLAN" >/dev/null; pu config set environment "$ENV_NAME" >/dev/null
   [ -n "$AMI" ] && pu config set amiId "$AMI" >/dev/null || true
 }
 
@@ -108,8 +109,8 @@ cfn_deploy() {
   vpc="$(aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query 'Vpcs[0].VpcId' --output text)"
   cidr="$(aws ec2 describe-vpcs --vpc-ids "$vpc" --query 'Vpcs[0].CidrBlock' --output text)"
   if ! aws cloudformation deploy --stack-name "$STACK" --template-file "$DIR/template.yaml" --no-fail-on-empty-changeset \
-      --tags Project=capa8-asistencia Tenant="$TENANT" ManagedBy=cloudformation \
-      --parameter-overrides "Tenant=$TENANT" "Plan=$PLAN" "AmiId=$ami" "VpcId=$vpc" "VpcCidr=$cidr" \
+      --tags Project=capa8-asistencia Tenant="$TENANT" Env="$ENV_NAME" ManagedBy=cloudformation \
+      --parameter-overrides "Tenant=$TENANT" "Plan=$PLAN" "Environment=$ENV_NAME" "AmiId=$ami" "VpcId=$vpc" "VpcCidr=$cidr" \
         "PublicKey=$(cat "${TENANT_SSH_KEY:-$HOME/.ssh/diplo_mod2_key.pub}")"; then
     echo "--- eventos con error del stack ---" >&2
     aws cloudformation describe-stack-events --stack-name "$STACK" --query 'StackEvents[?contains(ResourceStatus,`FAILED`)].[LogicalResourceId,ResourceStatusReason]' --output text >&2 || true

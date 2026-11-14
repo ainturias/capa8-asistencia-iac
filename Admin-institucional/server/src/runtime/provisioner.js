@@ -119,8 +119,9 @@ async function readScanSummary(cfg, since) {
   }
 }
 
-function childEnv(adminEmail, cfg) {
-  const env = { LANG: 'C.UTF-8', TENANT_ADMIN_EMAIL: adminEmail, TENANT_REGION: cfg.region };
+function childEnv(adminEmail, cfg, environment) {
+  // production -> prod; staging -> staging (etiqueta Env en AWS, variable del módulo y etiqueta de las métricas)
+  const env = { LANG: 'C.UTF-8', TENANT_ADMIN_EMAIL: adminEmail, TENANT_REGION: cfg.region, TENANT_ENV: environment === 'staging' ? 'staging' : 'prod' };
   for (const [key, value] of Object.entries(process.env)) {
     // Lista blanca: nada de PLATFORM_*, DATABASE_URL ni contraseñas de la plataforma llega al proceso hijo
     if (/^(PATH|HOME|USER|SHELL|TMPDIR|TF_ENCRYPTION|AWS_.*|ANSIBLE_.*|PACKER_.*|PULUMI_.*)$/.test(key) && value !== undefined) env[key] = value;
@@ -157,7 +158,7 @@ function createProvisioner(pool) {
     const cfg = settings();
     const started = new Date();
     const { rows: [ctx] } = await pool.query(`
-      SELECT t.id AS tenant_id, t.slug, t.engine, t.lifecycle_status, r.admin_email, p.infra_plan
+      SELECT t.id AS tenant_id, t.slug, t.engine, t.environment, t.lifecycle_status, r.admin_email, p.infra_plan
       FROM platform_jobs j JOIN platform_tenants t ON t.id = j.tenant_id
       JOIN platform_requests r ON r.id = t.request_id JOIN platform_plans p ON p.id = r.plan_id
       WHERE j.id = $1`, [job.id]);
@@ -165,7 +166,7 @@ function createProvisioner(pool) {
     await pool.query("UPDATE platform_jobs SET status = 'running', started_at = $2, versions = $3 WHERE id = $1",
       [job.id, started, JSON.stringify(versions)]);
 
-    let log = `$ ${job.operation} ${ctx.slug} · motor=${job.engine} plan=${ctx.infra_plan}\n`;
+    let log = `$ ${job.operation} ${ctx.slug} · motor=${job.engine} plan=${ctx.infra_plan} entorno=${ctx.environment}\n`;
     let dirty = true;
     let truncated = false;
     const append = (chunk) => {
@@ -187,7 +188,7 @@ function createProvisioner(pool) {
       let child;
       try {
         child = spawn('bash', [cfg.script, job.operation, job.engine, ctx.slug, ctx.infra_plan, cfg.amiId], {
-          cwd: cfg.root, env: childEnv(ctx.admin_email, cfg), detached: true, stdio: ['ignore', 'pipe', 'pipe'],
+          cwd: cfg.root, env: childEnv(ctx.admin_email, cfg, ctx.environment), detached: true, stdio: ['ignore', 'pipe', 'pipe'],
         });
       } catch (error) {
         append(`No se pudo iniciar el proceso: ${error.message}\n`);

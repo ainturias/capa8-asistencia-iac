@@ -27,3 +27,10 @@ URL pública y su clave de vinculación. La URL debe estar habilitada en
 Para desarrollo, `PLATFORM_MAIL_TRANSPORT=preview` permite copiar el enlace desde
 el panel. Para correo real, configura las variables SMTP del ejemplo. Consulta
 también la [guía de la API](server/README.md).
+
+## Despliegue de infraestructura (runner)
+
+Las pestañas **Despliegues**, **Monitoreo** y **Auditoría** ejecutan `infra/scripts/tenant.sh` en segundo plano y consultan Grafana.
+El servidor necesita las herramientas y credenciales descritas en [`infra/README.md`](../infra/README.md) y estas variables en `server/.env`
+(ver `.env.example`): `PROVISIONER_AMI_ID`, `PROVISIONER_REGION`, `PROVISIONER_CONCURRENCY` y `PLATFORM_GRAFANA_URL`.
+Los procesos hijos solo reciben una lista blanca de variables de entorno y el registro oculta contraseñas y claves.
